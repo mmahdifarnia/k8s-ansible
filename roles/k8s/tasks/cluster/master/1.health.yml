@@ -1,0 +1,137 @@
+# ============================================
+# Step 0: Health Check - Determine if reset needed
+# ============================================
+- name: Step 0 - Check cluster health
+  tags:
+    - always
+    - health-check
+  block:
+    - name: Check if Kubernetes is initialized
+      ansible.builtin.stat:
+        path: /etc/kubernetes/admin.conf
+      register: k8s_initialized
+
+
+    - name: Debug k8s_initialized
+      ansible.builtin.debug:
+        var: k8s_initialized
+
+    - name: Check static pod manifests exist
+      ansible.builtin.stat:
+        path: /etc/kubernetes/manifests
+      register: static_pod_dir
+      when: k8s_initialized.stat.exists
+
+    - name: Get kubelet service status
+      ansible.builtin.systemd:
+        name: kubelet
+      register: kubelet_status
+      when: k8s_initialized.stat.exists
+      failed_when: false
+
+    - name: Check API server connectivity with k8s_info
+      kubernetes.core.k8s_info:
+        kind: Node
+      register: k8s_api_check
+      changed_when: false
+      failed_when: false
+      when: k8s_initialized.stat.exists
+
+
+    - name: Set kubectl_check fact based on API server connectivity
+      ansible.builtin.set_fact:
+        kubectl_check:
+          rc: "{{ 0 if not k8s_api_check.failed else 1 }}"
+      when: k8s_initialized.stat.exists
+
+    - name: Initialize static_pods_status
+      ansible.builtin.set_fact:
+        static_pods_status: []
+      when:
+        - k8s_initialized.stat.exists
+        - static_pod_dir.stat.exists
+
+    - name: Get static pod status using k8s_info
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: kube-system
+        label_selectors:
+          - k8s-app in (kube-apiserver, etcd, kube-controller-manager, kube-scheduler)
+      register: static_pods_info
+      changed_when: false
+      failed_when: false
+      when:
+        - k8s_initialized.stat.exists
+        - static_pod_dir.stat.exists
+
+    - name: Set static_pods_status fact from k8s_info output
+      ansible.builtin.set_fact:
+        static_pods_status: "{{ static_pods_status | default([]) + [item.metadata.name + ':' + item.status.phase] }}"
+      loop: "{{ static_pods_info.resources }}"
+      when:
+        - k8s_initialized.stat.exists
+        - static_pod_dir.stat.exists
+        - static_pods_info.resources is defined and static_pods_info.resources | length > 0
+
+
+    - name: Set problem_pods fact from shell output
+      ansible.builtin.set_fact:
+        problem_pods: "{{ problem_pods_check.stdout_lines | default([]) }}"
+      when:
+        - k8s_initialized.stat.exists
+        - kubectl_check.rc == 0
+
+    - name: Display current cluster state
+      ansible.builtin.debug:
+        msg:
+          - "=== Current Cluster Status ==="
+          - "Initialized: {{ k8s_initialized.stat.exists }}"
+          - "Kubelet Running: {{ kubelet_status.status.ActiveState | default('unknown') }}"
+          - "kubectl Accessible: {{ kubectl_check.rc == 0 if kubectl_check.rc is defined else 'N/A' }}"
+          - "Static Pods Status:"
+          - "{{ static_pods_status | default(['No static pods found']) | join('\n') }}"
+          - "Problem Pods ({{ problem_pods | default([]) | length }}): {{ problem_pods | default([]) }}"
+
+    - name: Determine reset necessity
+      ansible.builtin.set_fact:
+        needs_reset: true
+        reset_reason: "{{ reset_reason_determined }}"
+      vars:
+        reset_reason_determined: >-
+          {%- if kubelet_status.status.ActiveState is defined and kubelet_status.status.ActiveState != 'active' -%}
+            Kubelet service not running
+          {%- elif kubectl_check.rc != 0 -%}
+            kubectl cannot connect to API server
+          {%- elif static_pods_status is defined and (static_pods_status | select('search', ':(Pending|Error|Failed)') | list | length > 0) -%}
+            Static pods not ready
+          {%- elif problem_pods is defined and problem_pods | length > 0 -%}
+            Found {{ problem_pods | length }} pods in CrashLoopBackOff/Error state
+          {%- else -%}
+            none
+          {%- endif -%}
+      when: k8s_initialized.stat.exists
+
+    - name: Set fact - cluster is healthy
+      ansible.builtin.set_fact:
+        needs_reset: false
+      when:
+        - k8s_initialized.stat.exists
+
+    - name: Display decision - Reset needed
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "  🔄 RESET REQUIRED"
+          - "  Reason: {{ reset_reason | default('Cluster has issues') }}"
+          - "=========================================="
+      when: needs_reset | default(false)
+
+    - name: Display decision - Cluster healthy
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "  ✅ CLUSTER HEALTHY - Skipping reset"
+          - "  All static pods running correctly"
+          - "=========================================="
+      when: (not needs_reset | default(false)) and k8s_initialized.stat.exists

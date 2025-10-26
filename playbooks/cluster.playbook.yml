@@ -1,0 +1,84 @@
+---
+- name: Installation of kubeadm,kubectl and kubelet
+  hosts: all
+  tasks:
+    - name: Import role for installation of kubeadm,kubectl,kubelet
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: cluster/install.yml
+
+- name: Initialization of Kubeadm for master node
+  hosts: master
+  tasks:
+    - name: Display setup information
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "  Kubernetes Cluster Smart Setup"
+          - "  Container Runtime: containerd"
+          - "  Target: {{ inventory_hostname }}"
+          - "=========================================="
+    - name: Import role for health check
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: cluster/master/1.health.yml
+    - name: Import role for kubeadm reset
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: cluster/master/2.reset.yml
+    - name: Import role for Initialization of Kubeadm
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: cluster/master/3.initialize.yml
+    - name: Import role for kubectl config
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: cluster/master/4.kubectl.yml
+    - name: Import role for CNI Installation
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: cni/install.yml
+    - name: Import role for join command
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: cluster/master/5.join_command.yml
+
+    - name: Debug join command result to see structure
+      ansible.builtin.debug:
+        var: join_worker_command
+
+    - name: Extract and set join command as fact
+      ansible.builtin.set_fact:
+        cluster_join_command: "{{ join_worker_command }}"
+        cacheable: true
+      delegate_to: localhost
+      delegate_facts: true
+
+- name: Join worker node to the cluster
+  hosts: worker
+  tasks:
+    - name: Display facts
+      ansible.builtin.debug:
+        msg: "{{ hostvars['localhost']['cluster_join_command'] }}"
+
+    - name: Get join command from master node
+      ansible.builtin.set_fact:
+        cluster_join_command: "{{ hostvars['localhost']['cluster_join_command'] | default('JOIN_COMMAND_NOT_FOUND') }}"
+
+    - name: Display join command that will be used
+      ansible.builtin.debug:
+        msg: "Using join command: {{ cluster_join_command }}"
+
+    - name: Validate join command before proceeding
+      ansible.builtin.fail:
+        msg: "Join command not found or invalid. Please check the master node setup. Current value: '{{ cluster_join_command }}'"
+      when: >
+        cluster_join_command == "JOIN_COMMAND_NOT_FOUND" or
+        cluster_join_command is not defined or
+        cluster_join_command | length < 10 or
+        'kubeadm join' not in cluster_join_command
+
+    - name: Import role for join workers to the cluster
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: "cluster/worker/1.join.yml"

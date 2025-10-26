@@ -1,0 +1,9 @@
+---
+- name: Configuring the base for K8S,CRI,CNI
+  hosts: all
+  become: true
+  tasks:
+    - name: Import role for base configuration
+      ansible.builtin.include_role:
+        name: k8s
+        tasks_from: config/config.yml

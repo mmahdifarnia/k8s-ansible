@@ -1,0 +1,27 @@
+# ============================================
+# Step 5: Initialize Control Plane (Only if reset)
+# ============================================
+- name: Step 5 - Initialize Kubernetes control plane
+  when: needs_reset | default(true)
+  become: true
+  tags:
+    - init
+  block:
+    - name: Display initialization message
+      ansible.builtin.debug:
+        msg:
+          - "Initializing control plane with:"
+          - "  API Server: {{ k8s_master_ip }}"
+          - "  Pod Network: {{ k8s_cidr }}"
+          - "This takes 3-5 minutes..."
+
+    - name: Run kubeadm init
+      ansible.builtin.command: >
+        kubeadm init
+        --apiserver-advertise-address={{ k8s_master_ip }}
+        --pod-network-cidr={{ k8s_cidr }}
+        --control-plane-endpoint={{ k8s_master_ip }}:6443
+        --cri-socket=unix:///run/containerd/containerd.sock
+        --v=5
+      register: kubeadm_init
+      changed_when: "'Your Kubernetes control-plane has initialized successfully' in kubeadm_init.stdout"

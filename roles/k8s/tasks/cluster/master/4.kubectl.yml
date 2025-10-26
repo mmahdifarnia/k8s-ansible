@@ -1,0 +1,25 @@
+# ============================================
+# Step 6: Configure kubectl
+# ============================================
+- name: Step 6 - Configure kubectl for vagrant user
+  when: true
+  tags:
+    - kubectl
+  block:
+    - name: Create .kube directory for vagrant user
+      ansible.builtin.file:
+        path: "{{ k8s_home }}/.kube"
+        state: directory
+        mode: '0755'
+        owner: "{{ k8s_user }}"
+        group: "{{ k8s_user }}"
+
+    - name: Copy admin.conf to user's kube config
+      become: true
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: "{{ k8s_home }}/.kube/config"
+        remote_src: true
+        owner: "{{ k8s_user }}"
+        group: "{{ k8s_user }}"
+        mode: '0600'

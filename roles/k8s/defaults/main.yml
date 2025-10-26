@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT-0
+---
+# defaults file for roles/k8s
+k8s_user: vagrant
+k8s_home: "/home/{{ k8s_user }}"
+k8s_cidr: "10.244.0.0/16"
+k8s_version: "v1.33"

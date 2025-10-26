@@ -1,0 +1,24 @@
+---
+- name: Generate join command
+  become: true
+  ansible.builtin.command: kubeadm token create --print-join-command
+  register: join_command_raw
+  changed_when: false
+
+- name: Debug join command raw output
+  ansible.builtin.debug:
+    var: join_command_raw
+    verbosity: 1
+
+- name: Store join command
+  ansible.builtin.set_fact:
+    join_worker_command: "{{ join_command_raw.stdout_lines[0] }}"
+
+- name: Debug stored join command
+  ansible.builtin.debug:
+    var: join_worker_command
+    verbosity: 1
+- name: Debug file creation
+  ansible.builtin.debug:
+    msg: "Join command has been written to /tmp/kubernetes_join_command"
+    verbosity: 1

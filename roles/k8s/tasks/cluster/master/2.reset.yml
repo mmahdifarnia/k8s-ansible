@@ -1,0 +1,54 @@
+# ============================================
+# Step 1: Complete Reset (Only if needed)
+# ============================================
+- name: Step 1 - Reset Kubernetes cluster
+  when: needs_reset | default(false)
+  tags:
+    - reset
+  block:
+    - name: Display reset warning
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  Performing cluster reset..."
+          - "Reason: {{ reset_reason }}"
+
+    - name: Check if kubeadm is installed
+      ansible.builtin.stat:
+        path: /usr/bin/kubeadm
+      register: kubeadm_exists
+
+    - name: Reset kubeadm cluster
+      ansible.builtin.command: kubeadm reset -f --cri-socket unix:///run/containerd/containerd.sock
+      when: kubeadm_exists.stat.exists
+      register: kubeadm_reset
+      changed_when: "'The reset process does not clean CNI' in kubeadm_reset.stdout"
+      failed_when: false
+
+    - name: Remove Kubernetes directories
+      become: true
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/kubernetes/
+        - /var/lib/etcd/
+        - /var/lib/kubelet/
+        - /etc/cni/net.d/
+        - "{{ k8s_home }}/.kube/"
+
+    - name: Flush iptables rules
+      become: true
+      ansible.builtin.iptables:
+        chain: "{{ item.chain }}"
+        flush: true
+        table: "{{ item.table | default('filter') }}"
+      loop:
+        - { chain: INPUT }
+        - { chain: FORWARD }
+        - { chain: OUTPUT }
+        - { chain: PREROUTING, table: nat }
+        - { chain: POSTROUTING, table: nat }
+        - { chain: OUTPUT, table: nat }
+        - { chain: PREROUTING, table: mangle }
+        - { chain: OUTPUT, table: mangle }
+      failed_when: true

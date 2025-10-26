@@ -1,0 +1,25 @@
+---
+
+
+- name: Join worker node to cluster
+  become: true
+  ansible.builtin.command: "{{ cluster_join_command }}"
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  when:
+    - inventory_hostname in groups['worker']
+    - cluster_join_command is defined
+
+- name: Debug cluster_join_command
+  ansible.builtin.debug:
+    var: cluster_join_command
+  when:
+    - inventory_hostname in groups['worker']
+    - cluster_join_command is defined
+
+- name: Notify that worker join has been attempted
+  ansible.builtin.debug:
+    msg: "Worker {{ inventory_hostname }}: join command executed (verify /etc/kubernetes/kubelet.conf for success)."
+  when:
+    - inventory_hostname in groups['worker']
+    - cluster_join_command is defined

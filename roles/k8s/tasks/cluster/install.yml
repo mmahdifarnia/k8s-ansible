@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: MIT-0
+---
+# tasks file for roles/kubeadm
+
+- name: Install kubeadm,kubectl and kubelet
+  tags:
+    - installation
+  become: true
+  block:
+    - name: Disable swap mode
+      ansible.builtin.command: swapoff -a
+      changed_when: ansible_swaptotal_mb > 0
+
+    - name: Comment out any swap entry in /etc/fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*\s+swap\s+)'
+        replace: '#\1'
+
+    - name: Update apt package index
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install required packages for Kubernetes installation
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gpg
+          - python3-pip
+          - kubernetes
+        state: present
+
+    - name: Ensure /etc/apt/keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: "{{ k8s_user }}"
+        group: "{{ k8s_user }}"
+        mode: "0755"
+
+    - name: Download Kubernetes apt repository GPG key
+      ansible.builtin.get_url:
+        url: https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/Release.key
+        dest: /etc/apt/keyrings/kubernetes-apt-keyring
+        mode: "0644"
+        owner: "{{ k8s_user }}"
+        group: "{{ k8s_user }}"
+        force: false
+
+    - name: Convert GPG key to dearmor format for APT
+      ansible.builtin.command:
+        cmd: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /etc/apt/keyrings/kubernetes-apt-keyring
+      args:
+        creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+    - name: Add Kubernetes apt repository
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ k8s_version }}/deb/ /
+        filename: kubernetes
+        state: present
+        update_cache: true
+
+    - name: Install kubelet, kubeadm, and kubectl
+      ansible.builtin.apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+
+    - name: Hold kubelet, kubeadm, and kubectl version
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
