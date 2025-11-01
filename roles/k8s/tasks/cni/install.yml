@@ -3,7 +3,6 @@
 # ============================================
 - name: Step 7 - Install Flannel CNI
   when: true
-  become: true
   tags:
     - flannel
   block:
@@ -13,6 +12,13 @@
         dest: "{{ k8s_home }}/kube-flannel.yml"
         mode: '0644'
         timeout: 30
+
+    - name: Add network interface configuration to Flannel manifest
+      ansible.builtin.lineinfile:
+        path: "{{ k8s_home }}/kube-flannel.yml"
+        insertafter: '^\s+- --kube-subnet-mgr\s*$'
+        line: '        - --iface=enp0s8'
+        create: false
 
     - name: Apply Flannel CNI
       kubernetes.core.k8s:

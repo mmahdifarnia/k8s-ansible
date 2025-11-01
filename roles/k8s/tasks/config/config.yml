@@ -37,6 +37,34 @@
           br_netfilter
         mode: '0644'
 
+    - name: Determine node IP using hostvars for nodeX pattern
+      ansible.builtin.set_fact:
+        kubelet_node_ip: "{{ k8s_kubelet_node_ips[ansible_hostname] }}"
+
+    - name: Fail if node IP cannot be determined
+      ansible.builtin.fail:
+        msg: "Could not determine node IP for {{ inventory_hostname }}. Please define it in k8s_kubelet_node_ips."
+      when: kubelet_node_ip is not defined
+
+    - name: Create kubelet configuration directory
+      ansible.builtin.file:
+        path: "{{ k8s_kubelet_config_path | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      become: true
+
+    - name: Configure kubelet with node IP
+      ansible.builtin.template:
+        src: kubelet_node_ip.j2
+        dest: "{{ k8s_kubelet_config_path }}"
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+      become: true
+
     - name: Set sysctl parameters for Kubernetes
       ansible.posix.sysctl:
         name: "{{ item.name }}"

@@ -2,5 +2,8 @@
 ---
 # vars file for roles/kubeadm
 k8s_master_ip: "192.168.56.110"
-k8s_worker1_ip: "192.168.56.111"
-k8s_worker2_ip: "192.168.56.112"
+
+k8s_kubelet_node_ips:
+  k8s-master: "192.168.56.110"
+  k8s-worker1: "192.168.56.111"
+  k8s-worker2: "192.168.56.112"

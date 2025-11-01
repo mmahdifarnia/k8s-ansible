@@ -110,3 +110,27 @@ kubectl get pods -A
 echo ""
 echo "=== Container Status ==="
 sudo crictl ps
+
+
+# Edit kubelet configuration on each node
+sudo vim /etc/default/kubelet
+
+# Add this line with the correct IP for each node:
+KUBELET_EXTRA_ARGS="--node-ip=192.168.56.110"  # On master
+KUBELET_EXTRA_ARGS="--node-ip=192.168.56.111"  # On worker1
+KUBELET_EXTRA_ARGS="--node-ip=192.168.56.112"  # On worker2
+
+# Restart kubelet
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+
+
+# Backup current resolv.conf
+sudo cp /etc/resolv.conf /etc/resolv.conf.backup
+
+# Create new resolv.conf with CoreDNS
+sudo tee /etc/resolv.conf > /dev/null <<EOF
+nameserver 10.96.0.10
+search kafka.svc.cluster.local svc.cluster.local cluster.local
+options ndots:5
+EOF
