@@ -1,0 +1,245 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: redis
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    port 6379
+    dir /data
+    appendonly yes
+    appendfsync everysec
+    requirepass ""
+    masterauth ""
+    # Security: rename dangerous commands
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+    rename-command CONFIG ""
+    rename-command SHUTDOWN ""
+    # Performance settings
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+    # Replication settings
+    replica-serve-stale-data yes
+    replica-read-only yes
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: redis-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-pv-1
+spec:
+  capacity:
+    storage: 2Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: redis-storage
+  local:
+    path: /var/lib/redis/redis-0
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-worker1
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-pv-2
+spec:
+  capacity:
+    storage: 2Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: redis-storage
+  local:
+    path: /var/lib/redis/redis-1
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-worker2
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: redis
+spec:
+  serviceName: redis-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      initContainers:
+        - name: init-redis
+          image: redis:7.2-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Only replica needs to wait for master
+              if [ "$(hostname)" != "redis-0" ]; then
+                echo "Waiting for master redis-0 to be ready..."
+                until redis-cli -h redis-0.redis-headless.redis.svc.cluster.local ping; do
+                  sleep 2
+                done
+              fi
+          volumeMounts:
+            - name: redis-config
+              mountPath: /etc/redis
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Set up replication based on pod index
+              if [ "$(hostname)" = "redis-0" ]; then
+                echo "Starting as MASTER"
+                exec redis-server /etc/redis/redis.conf
+              else
+                echo "Starting as REPLICA of redis-0"
+                exec redis-server /etc/redis/redis.conf --replicaof redis-0.redis-headless.redis.svc.cluster.local 6379
+              fi
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redis-config
+              mountPath: /etc/redis
+            - name: redis-data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: redis-config
+          configMap:
+            name: redis-config
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        storageClassName: "redis-storage"
+        resources:
+          requests:
+            storage: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: redis
+spec:
+  clusterIP: None # HEADLESS - for direct pod access
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: redis
+  labels:
+    app: redis
+spec:
+  clusterIP: None # Headless service
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+
+---
+# Master-only service (for write operations)
+# This service specifically targets redis-0 which is always the master
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  namespace: redis
+  labels:
+    app: redis
+    role: master
+spec:
+  type: NodePort
+  selector:
+    app: redis
+    statefulset.kubernetes.io/pod-name: redis-0 # Only target redis-0 (master)
+  ports:
+    - name: redis-master
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+      nodePort: 30917 # External port for master (writes)
+  # Use Local to ensure traffic goes to the node where redis-0 is running
+  externalTrafficPolicy: Local
+
+---
+# Replica-only service (for read operations)
+# This service specifically targets redis-1 which is always a replica
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-replica
+  namespace: redis
+  labels:
+    app: redis
+    role: replica
+spec:
+  type: NodePort
+  selector:
+    app: redis
+    statefulset.kubernetes.io/pod-name: redis-1 # Only target redis-1 (replica)
+  ports:
+    - name: redis-replica
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+      nodePort: 30918 # External port for replica (reads)
+  # Use Local to ensure traffic goes to the node where redis-1 is running
+  externalTrafficPolicy: Local

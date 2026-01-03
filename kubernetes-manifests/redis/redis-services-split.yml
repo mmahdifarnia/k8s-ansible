@@ -1,0 +1,99 @@
+# Redis Services with Master/Replica Splitting
+# This configuration creates separate NodePort services for master and replica
+# to enable proper read/write splitting at the load balancer level
+
+---
+# Headless service for internal cluster communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: redis
+  labels:
+    app: redis
+spec:
+  clusterIP: None # Headless service
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+
+---
+# Master-only service (for write operations)
+# This service specifically targets redis-0 which is always the master
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  namespace: redis
+  labels:
+    app: redis
+    role: master
+spec:
+  type: NodePort
+  selector:
+    app: redis
+    statefulset.kubernetes.io/pod-name: redis-0 # Only target redis-0 (master)
+  ports:
+    - name: redis-master
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+      nodePort: 30917 # External port for master (writes)
+  # Use Local to ensure traffic goes to the node where redis-0 is running
+  externalTrafficPolicy: Local
+
+---
+# Replica-only service (for read operations)
+# This service specifically targets redis-1 which is always a replica
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-replica
+  namespace: redis
+  labels:
+    app: redis
+    role: replica
+spec:
+  type: NodePort
+  selector:
+    app: redis
+    statefulset.kubernetes.io/pod-name: redis-1 # Only target redis-1 (replica)
+  ports:
+    - name: redis-replica
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+      nodePort: 30918 # External port for replica (reads)
+  # Use Local to ensure traffic goes to the node where redis-1 is running
+  externalTrafficPolicy: Local
+
+---
+# Alternative: If you want to load balance across multiple replicas
+# Uncomment this if you scale to more than 2 Redis instances
+#
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: redis-replicas
+#   namespace: redis
+#   labels:
+#     app: redis
+#     role: replicas
+# spec:
+#   type: NodePort
+#   selector:
+#     app: redis
+#     # This will match all pods except we'll use a different approach
+#   ports:
+#     - name: redis-replicas
+#       port: 6379
+#       targetPort: 6379
+#       protocol: TCP
+#       nodePort: 30918
+#   sessionAffinity: ClientIP  # Optional: sticky sessions
+#   externalTrafficPolicy: Cluster
+

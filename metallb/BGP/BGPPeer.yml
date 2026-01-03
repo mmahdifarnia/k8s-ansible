@@ -1,0 +1,10 @@
+apiVersion: metallb.io/v1beta2
+kind: BGPPeer
+metadata:
+  name: my-peer
+  namespace: metallb-system
+spec:
+  myASN: 64512  # Your AS number
+  peerASN: 64513  # Router's AS number
+  peerAddress: 192.168.56.1  # Router IP
+  routerID: 192.168.56.11  # Node IP for router ID

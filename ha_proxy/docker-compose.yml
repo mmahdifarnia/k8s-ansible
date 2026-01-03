@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  haproxy-loadbalancer:
+    build: .
+    container_name: haproxy-lb
+    ports:
+      # Redis write operations (Master) - accessible from your laptop
+      - "6379:6379"
+      # Redis read operations (Replica) - accessible from your laptop
+      - "6380:6380"
+      # Kafka load balancer - accessible from your laptop
+      - "9092:9092"
+      # HAProxy stats dashboard
+      - "8404:8404"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./logs:/var/log/haproxy
+    restart: unless-stopped
+    networks:
+      - loadbalancer
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8404/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  loadbalancer:
+    driver: bridge

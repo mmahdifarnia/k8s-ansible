@@ -3,3 +3,4 @@
 /.vscode
 .ansible
 .env
+**/logs

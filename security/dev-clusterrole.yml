@@ -1,0 +1,80 @@
+---
+# ClusterRole defining permissions for the dev user
+# This role grants full access to common resources
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dev-namespace-admin
+rules:
+  # Full access to pods
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Full access to services
+  - apiGroups: [""]
+    resources: ["services", "services/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Full access to deployments, replicasets, daemonsets, statefulsets
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Full access to configmaps and secrets
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Full access to persistent volume claims
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Full access to ingresses
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "ingresses/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Full access to network policies
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Access to jobs and cronjobs
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Access to endpoints
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+  
+  # Access to events (read-only)
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  
+  # Access to namespaces (read-only, to view namespace details)
+  - apiGroups: [""]
+    resources: ["namespaces", "namespaces/status"]
+    verbs: ["get", "list"]
+
+---
+# RoleBinding to bind the dev user to the ClusterRole ONLY in the metallb namespace
+# This restricts the user's access to just the metallb namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-metallb-binding
+  namespace: metallb-system  # Change this to 'metallb' if your namespace is named 'metallb'
+subjects:
+  - kind: User
+    name: dev  # This matches the CN in your certificate
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: dev-namespace-admin
+  apiGroup: rbac.authorization.k8s.io
+

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox-dns-test
+spec:
+  containers:
+  - name: busybox
+    image: busybox:1.28
+    command: ['sh', '-c', 'sleep 3600']

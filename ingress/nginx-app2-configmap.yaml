@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-app2-config
+  namespace: default
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name app2.local;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-app2-html
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>App 2 - Green Application</title>
+        <style>
+            body {
+                background-color: #e8f5e8;
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 50px;
+            }
+            h1 {
+                color: #388e3c;
+                font-size: 3em;
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                padding: 40px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🌱 App 2 - Green Application</h1>
+            <p>Welcome to the second application!</p>
+            <p><strong>Pod:</strong> <span style="color: #388e3c;">$(hostname)</span></p>
+            <p><strong>Time:</strong> $(date)</p>
+        </div>
+    </body>
+    </html>

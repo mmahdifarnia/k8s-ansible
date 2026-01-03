@@ -1,0 +1,11 @@
+apiVersion: metallb.io/v1beta1
+kind: BGPAdvertisement
+metadata:
+  name: bgp-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - default-pool
+  aggregationLength: 32  # Advertise /32 routes
+  communities:
+  - 64512:100  # BGP communities

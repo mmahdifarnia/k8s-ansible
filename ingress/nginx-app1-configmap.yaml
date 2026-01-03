@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-app1-config
+  namespace: default
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name app1.local;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-app1-html
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>App 1 - Blue Application</title>
+        <style>
+            body {
+                background-color: #e3f2fd;
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 50px;
+            }
+            h1 {
+                color: #1976d2;
+                font-size: 3em;
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                padding: 40px;
+                border-radius: 10px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚀 App 1 - Blue Application</h1>
+            <p>Welcome to the first application!</p>
+            <p><strong>Pod:</strong> <span style="color: #1976d2;">$(hostname)</span></p>
+            <p><strong>Time:</strong> $(date)</p>
+        </div>
+    </body>
+    </html>
