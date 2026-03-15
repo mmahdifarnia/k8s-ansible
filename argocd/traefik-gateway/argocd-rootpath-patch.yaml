@@ -1,0 +1,15 @@
+# Patch ArgoCD to serve under /argocd when accessed via Gateway at http://<gateway-ip>/argocd
+# Apply once, then restart argocd-server:
+#   kubectl apply -f argocd-rootpath-patch.yaml
+#   kubectl rollout restart deployment argocd-server -n argocd
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+data:
+  server.basehref: "/argocd"
+  server.rootpath: "/argocd"
+  # Run HTTP without TLS so Traefik can forward plain HTTP (no HTTPS redirect)
+  server.insecure: "true"

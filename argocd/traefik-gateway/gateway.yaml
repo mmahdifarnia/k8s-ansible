@@ -1,0 +1,29 @@
+# Gateway API Gateway - implemented by Traefik
+# Traefik will bind listeners to its LoadBalancer Service (MetalLB assigns IP)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: traefik-gateway
+  namespace: traefik
+spec:
+  gatewayClassName: traefik
+  listeners:
+    - name: web
+      protocol: HTTP
+      port: 8000   # Traefik's internal 'web' entrypoint port (mapped to external 80 by the Service)
+      allowedRoutes:
+        namespaces:
+          from: All
+    # HTTPS: uncomment and add tls.certificateRefs when you have a TLS secret
+    # - name: https
+    #   protocol: HTTPS
+    #   port: 443
+    #   allowedRoutes:
+    #     namespaces:
+    #       from: All
+    #   tls:
+    #     mode: Terminate
+    #     certificateRefs:
+    #       - kind: Secret
+    #         name: argocd-tls
+    #         namespace: traefik

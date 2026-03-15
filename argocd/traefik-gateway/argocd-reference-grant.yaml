@@ -1,0 +1,15 @@
+# ReferenceGrant: allow HTTPRoute in namespace 'traefik' to reference
+# Service 'argocd-server' in namespace 'argocd' (cross-namespace backendRef)
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-traefik-to-argocd
+  namespace: argocd
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: traefik
+  to:
+    - group: ""
+      kind: Service

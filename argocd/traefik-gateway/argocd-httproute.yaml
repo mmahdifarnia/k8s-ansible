@@ -1,0 +1,21 @@
+# HTTPRoute in argocd namespace → argocd-server is in the same namespace, no cross-namespace ReferenceGrant needed.
+# The Gateway allows routes from All namespaces (gateway.yaml allowedRoutes.namespaces.from: All).
+# ArgoCD must be configured with server.rootpath and server.basehref /argocd (argocd-rootpath-patch.yaml).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: web   # matches the Gateway listener named 'web' on port 8000
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /argocd
+      backendRefs:
+        - name: argocd-server
+          port: 80

@@ -47,6 +47,22 @@ kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}
 
 Create an Ingress resource to expose ArgoCD. See `argocd-ingress.yaml` in this directory.
 
+### Method 5: Traefik + Gateway API (with MetalLB BGP)
+
+Expose ArgoCD via **Traefik** as the Gateway API implementation; MetalLB (BGP) assigns an external IP to the Traefik LoadBalancer.
+
+1. Install Gateway API CRDs, Traefik with Gateway API provider, then create the Gateway and HTTPRoute. Full steps and manifests are in **`traefik-gateway/`**; see `traefik-gateway/README.md`.
+2. After installation, get the Gateway IP (MetalLB-assigned):
+   ```bash
+   kubectl get svc -n traefik traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+   ```
+3. Access ArgoCD at `http://<GATEWAY_IP>` (e.g. `http://192.168.56.200`).
+
+CLI login:
+```bash
+argocd login <GATEWAY_IP> --username admin --password <password> --insecure
+```
+
 ## Getting the Initial Admin Password
 
 The initial admin password is stored in a Kubernetes secret:
@@ -138,5 +154,5 @@ curl -k https://argocd-server.argocd.svc.cluster.local
    argocd account update-password
    ```
 
-3. **For production**: Use proper TLS certificates and Ingress with cert-manager.
+3. **For production**: Use proper TLS certificates and Gateway API / Ingress with cert-manager.
 

@@ -1,0 +1,9 @@
+# GatewayClass for Traefik - required for Gateway API
+# Traefik Helm chart may create this; apply if the Gateway stays not Programmed
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: traefik
+spec:
+  controllerName: traefik.io/gateway-controller
+  description: Traefik implements this GatewayClass

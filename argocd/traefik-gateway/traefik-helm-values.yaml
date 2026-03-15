@@ -1,0 +1,29 @@
+# Traefik Helm values for Gateway API with MetalLB LoadBalancer
+# Install: helm upgrade --install traefik traefik/traefik -n traefik -f traefik-helm-values.yaml
+
+# Enable Kubernetes Gateway API provider (replaces/supplements Ingress)
+providers:
+  kubernetesGateway:
+    enabled: true
+  kubernetesCRD:
+    enabled: false
+  kubernetesIngress:
+    enabled: false
+
+# Allow HTTPRoutes from all namespaces to attach to our Gateway
+gateway:
+  namespacePolicy: All
+
+# Expose Traefik via LoadBalancer so MetalLB (BGP) assigns an IP
+service:
+  type: LoadBalancer
+  spec:
+    # Optional: request a specific IP from MetalLB pool (e.g. 192.168.56.200)
+    # loadBalancerIP: 192.168.56.200
+
+# Entrypoints for Gateway API listeners (defaults: web=80, websecure=443)
+# No need to override unless you change ports
+
+# Single replica is enough for Vagrant; increase for HA
+deployment:
+  replicas: 1

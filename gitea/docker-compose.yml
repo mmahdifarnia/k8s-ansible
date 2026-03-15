@@ -1,0 +1,58 @@
+services:
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    environment:
+      # Run as root so Gitea can manage files (or set USER_UID/USER_GID to match host user)
+      USER_UID: "1000"
+      USER_GID: "1000"
+      # When ArgoCD (in cluster) pulls from host, use this base URL for clone links
+      GITEA__server__ROOT_URL: "http://192.168.56.1:3000/"
+      GITEA__server__HTTP_LISTEN: "0.0.0.0"
+      GITEA__server__HTTP_PORT: "3000"
+      GITEA__server__DOMAIN: "192.168.56.1"
+      GITEA__database__DB_TYPE: postgres
+      GITEA__database__HOST: gitea-postgres:5432
+      GITEA__database__NAME: gitea
+      GITEA__database__USER: gitea
+      GITEA__database__PASSWD: gitea
+    depends_on:
+      - postgres
+    networks:
+      - gitea
+    volumes:
+      - gitea:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    # Bind to all interfaces so both localhost and 192.168.56.1 are reachable (e.g. from Vagrant VMs)
+    ports:
+      - "0.0.0.0:3000:3000"
+      - "0.0.0.0:222:22"
+
+  postgres:
+    image: postgres:17.5-alpine
+    container_name: gitea-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    networks:
+      - gitea
+    environment:
+      POSTGRES_USER: gitea
+      POSTGRES_PASSWORD: gitea
+      POSTGRES_DB: gitea
+    command: postgres -c shared_buffers=128MB
+    ports:
+      - "5432:5432"
+    expose:
+      - "5432"
+
+
+volumes:
+  gitea:
+  postgres:
+
+networks:
+  gitea:
+    external: false
